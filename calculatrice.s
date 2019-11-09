@@ -87,10 +87,18 @@
 # Floating point values
 fp0: .float 0.0
 fp1: .float 1.0
+#!
 
 # Characters
-operators: .byte '+' '-' '*' '/'
+#operators: .byte '+' '-' '*' '/'
+#!
+#les opérations à faire
+plus: .byte '+'
+minus: .byte '-'
+multiplication: .byte '*'
+division: .byte '/'
 space: .byte ' '
+newline: .byte '\n'
 
 #-------------------------------------------------------------------------------
 # Strings
@@ -114,6 +122,8 @@ string_max: .asciiz "max"
 string_pow: .asciiz "pow"
 string_abs: .asciiz "abs"
 
+## chaîne de caractère pour le symbole de l'opération
+op: .space 8
 ################################################################################
 # Text
 ################################################################################
@@ -129,7 +139,7 @@ jal handle_cli_args
 j calculator_selection
 
 ignore_cli_args:
-  li $v0 0
+  li $v0 1
 
 calculator_selection:
   # Calculator
@@ -190,12 +200,144 @@ calculator_integer:
 
     # TODO:
     # Read operation
+    #! added op for storing the value of the operation sign
+    # lire l'opération à faire
+	jal read_operation
+	
     # Read second operand (if necessary)
     # Compute the result
     # Print the result
     # Loop or exit the program
-
-    calculator_integer_loop_end:
+    
+    # stocker dans $t0 le premiere caractère de la chaîne
+    # qui contient l'opération à faire
+    lb $t0 op
+   
+   	# avant de comparer le charactère qu'on a stocké en $t0
+   	# on va stocker dans un autre registre $t1 les charactères
+   	# de chaque opération
+   	# et puis on faire le branching vers l'operation qui correspond
+   	# si on trouve une égalité
+   
+    lb $t1 plus
+    beq $t0 $t1 faireAddition #!addition  
+   			
+    lb $t1 minus
+    beq $t0 $t1 faireSubstraction #!substraction
+    
+    lb $t1 multiplication
+    beq $t0 $t1 faireMultiplication #!multiplication
+    
+    lb $t1 division
+    beq $t0 $t1 faireDivision #!division
+    
+    # puisque les opération "max" et "min" ont les deux
+    # la lettre 'm' comme premiere caractère
+    # on va faire un branching vers min_or_max
+    # où on va determiner si l'operation lue est
+    # "max" or "min" 
+    la $t1 string_max
+    lb $t2 0($t1)
+    la $t3 string_min
+    lb $t4 0($t3)
+    beq $t0 $t2 min_or_max
+    
+    la $t1 string_pow
+    lb $t2 0($t1)
+    beq $t0 $t2 fairePuissance #!power
+    
+    la $t1 string_abs
+    lb $t2 0($t1)
+    beq $t0 $t2 faireAbsolue #! absolute value
+    
+    # si l'utilisateur va introduire une ligne vide
+    # alors on va faire un branch vers program_exit
+    # pour arrêter le program
+    lb $t1 newline
+    beq $t0 $t1 program_exit
+    
+#!
+     # ici on determine en fonction de la deuxieme charactere 
+     # s'il s'agit de "max" ou de "min"
+     min_or_max:
+     	lb $t5 1($a0)
+     	lb $t6 1($t1)
+     	lb $t7 1($t3)
+     	beq $t5 $t6 faireMaximum
+     	beq $t5 $t7 faireMinimum
+     
+     # le même principe pour chaque partie de branch sauf faireAbsolue
+     # on met le premier élément dans le registre $a0
+     # qui est le premiere d'argument dans la fonction qui sera appellée
+     # on lit le deuxième élément de l'opération
+     # puis on le met dans le registre $a1, qui est le deuxième argument de la fonction appellée
+     # on appelle la fonction qui correspond à l'opération à faire
+     # et puis un branch vers calculator_integer_loop_end
+     faireAddition:
+     	move $a0 $s0
+     	li $v0 5
+     	syscall
+     	move $a1 $v0
+     	jal operation_integer_addition
+     	b calculator_integer_loop_end
+     	
+     faireSubstraction:
+     	move $a0 $s0 
+     	li $v0 5
+     	syscall
+     	move $a1 $v0
+     	jal operation_integer_substraction
+     	b calculator_integer_loop_end 
+     	
+     faireMultiplication:
+     	move $a0 $s0
+     	li $v0 5
+     	syscall
+     	move $a1 $v0
+     	jal operation_integer_multiplication
+     	b calculator_integer_loop_end
+   
+     faireDivision:
+     	move $a0 $s0
+     	li $v0 5
+     	syscall
+     	move $a1 $v0
+     	jal operation_integer_division
+     	b calculator_integer_loop_end
+   
+     faireMaximum:
+     	move $a0 $s0
+     	li $v0 5
+     	syscall
+     	move $a1 $v0
+     	jal operation_integer_maximum
+     	b calculator_integer_loop_end
+     	
+     faireMinimum:
+     	move $a0 $s0
+     	li $v0 5
+     	syscall
+     	move $a1 $v0
+     	jal operation_integer_minimum
+     	b calculator_integer_loop_end
+     	
+     fairePuissance:
+     	move $a0 $s0
+     	li $v0 5
+     	syscall
+     	move $a1 $v0
+     	jal operation_integer_pow
+     	b calculator_integer_loop_end
+     
+     # puisqu'on a pas besoin d'un deuxiem élément
+     # on va seulement appeller la fonction operation_integer_abs
+     # et puis on fait un branch vers calculator_integer_loop_end
+     faireAbsolue:
+     	move $a0 $s0
+     	jal operation_integer_abs
+     	b calculator_integer_loop_end
+     
+     calculator_integer_loop_end:
       # Set the result as new first arg
       move $s0 $v0
       # Print result
@@ -204,9 +346,8 @@ calculator_integer:
       jal print_newline
 
       # TODO: uncomment the looping jump below once you are ready
-
-      # Ready to loop!
-      # j calculator_integer_loop
+	  # Ready to loop!
+      j calculator_integer_loop
 
   calculator_integer_exit:
     lw $ra 0($sp)
@@ -239,8 +380,8 @@ calculator_float:
   calculator_float_start:
     # Very first operand
     jal read_float
-    # We save the first arg in $f3 (arbitrarily chosen register)
-    mov.s $f3 $f0
+    # We save the first arg in $f12 (arbitrarily chosen register)
+    mov.s $f12 $f0
 
   # Calculator loop
   calculator_float_loop:
@@ -251,7 +392,117 @@ calculator_float:
     # Compute the result
     # Print the result
     # Loop or exit the program
-
+    jal read_operation
+ 
+    # stocker dans $t0 le premiere caractère de la chaîne
+    # qui contient l'opération à faire
+    lb $t0 op
+   
+    # avant de comparer le charactère qu'on a stocké en $t0
+   	# on va stocker dans un autre registre $t1 les charactères
+   	# de chaque opération
+   	# et puis on faire le branching vers l'operation qui correspond
+   	# si on trouve une égalité
+    
+    lb $t1 plus
+    beq $t0 $t1 faireAddition_float #!addition  
+   			
+    lb $t1 minus
+    beq $t0 $t1 faireSubstraction_float #!substraction
+    
+    lb $t1 multiplication
+    beq $t0 $t1 faireMultiplication_float #!multiplication
+    
+    lb $t1 division
+    beq $t0 $t1 faireDivision_float #!division
+    
+    # puisque les opération "max" et "min" ont les deux
+    # la lettre 'm' comme premiere caractère
+    # on va faire un branching vers min_or_max_float
+    # où on va determiner si l'operation lue est
+    # "max" or "min" 
+    la $t1 string_max
+    lb $t2 0($t1)
+    la $t3 string_min
+    lb $t4 0($t3)
+    beq $t0 $t2 min_or_max_float
+    
+    la $t1 string_pow
+    lb $t2 0($t1)
+    beq $t0 $t2 fairePuissance_float #!power
+   
+    la $t1 string_abs
+    lb $t2 0($t1)
+    beq $t0 $t2 faireAbsolue_float #! absolute value
+ 
+    lb $t1 newline
+    beq $t0 $t1 program_exit
+	     		     		   
+#!
+     #! since the sign of both operations starts with m, we also have to compare the second letter
+     min_or_max_float:
+     	lb $t5 1($a0)
+     	lb $t6 1($t1)
+     	lb $t7 1($t3)
+     	beq $t5 $t6 faireMaximum_float
+     	beq $t5 $t7 faireMinimum_float		
+     
+     # le même principe pour chaque partie de branch sauf faireAbsolue_float	
+     # on met le premier élément dans le registre $f12
+     # qui est le premiere d'argument dans la fonction qui sera appellée
+     # on lit le deuxième élément de l'opération
+     # puis on le met dans le registre $f13, qui est le deuxième argument de la fonction appellée
+     # on appelle la fonction qui correspond à l'opération à faire
+     # et puis un branch vers calculator_integer_loop_end
+     faireAddition_float:
+     	jal read_float
+     	mov.s $f13 $f0
+     	jal operation_float_addition
+     	b calculator_float_loop_end
+     	
+     faireSubstraction_float:
+     	jal read_float
+		mov.s $f13 $f0
+		jal operation_float_substraction
+		b calculator_float_loop_end
+	
+     faireMultiplication_float:
+     	jal read_float
+     	mov.s $f13 $f0
+     	jal operation_float_multiplication
+		b calculator_float_loop_end
+	
+     faireDivision_float:
+     	jal read_float
+		mov.s $f13 $f0
+		jal operation_float_division
+		b calculator_float_loop_end
+    
+    faireMaximum_float:
+     	jal read_float
+		mov.s $f13 $f0
+		jal operation_float_maximum
+		b calculator_float_loop_end
+	
+     faireMinimum_float:
+     	jal read_float
+		mov.s $f13 $f0
+		jal operation_float_minimum
+		b calculator_float_loop_end
+	
+      fairePuissance_float:
+     	jal read_float
+		mov.s $f13 $f0
+		jal operation_float_pow
+		b calculator_float_loop_end
+	
+      # puisqu'on a pas besoin d'un deuxiem élément
+      # on va seulement appeller la fonction operation_integer_abs
+      # et puis on fait un branch vers calculator_integer_loop_end
+      faireAbsolue_float:
+       jal operation_float_abs
+       b calculator_float_loop_end
+    
     calculator_float_loop_end:
       # Set the result as 'new first arg'
       mov.s $f3 $f0
@@ -263,7 +514,7 @@ calculator_float:
       # TODO: uncomment the looping jump below once you are ready
 
       # Ready to loop!
-      # j calculator_float_loop
+      j calculator_float_loop
 
   calculator_float_exit:
     lw $ra 0($sp)
@@ -321,6 +572,45 @@ handle_cli_args:
       # Set $v0 and exit if an authorized value is detected
       #
       # TODO
+      bne $s0 1 program_exit
+      move $a0 $s1
+      jal strlen
+      move $t3 $v0 # ici on met la taille dans $t3
+      addi $t3 $t3 1
+      lw $s4 0($s1)
+      move $s1 $s4
+      move $a0 $s1
+      li $t3 5
+      la $s3 string_float
+      
+      handle_loop:
+      	li $t9 1
+      	beq $t3 $t9 handle_cli_args_exit
+      	lb $t4 0($s1)
+      	lb $t5 0($s3)
+      	move $a0 $t4
+      	move $a0 $t5
+      	
+      	bne $t4 $t5 end_loop2
+      	addi $s1 $s1 1
+      	addi $s3 $s3 1
+      	li $v0 1
+      	subi $t3 $t3 1
+      	j handle_loop
+      	
+      	 end_loop2:
+      	 	la $s3 string_integer
+      	 	
+      	handle_loop2:
+      	beqz $t3 handle_cli_args_exit
+      	lb $t4 0($s1)
+      	lb $t5 0($s3)
+      	bne $t4 $t5 program_exit
+      	addi $s1 $s1 1
+      	addi $s3 $s3 1
+      	li $v0 0
+      	subi $t3 $t3 1
+      	j handle_loop2 
 
     handle_cli_args_loop_end:
       # Move on to the next argument (akin to argc--, argv++)
@@ -566,7 +856,16 @@ read_float:
   li $v0 6
   syscall
   jr $ra
-
+  
+#!
+# fonction pour lire l'operation à faire
+read_operation:
+	li $v0 8
+	la $a0 op
+	li $a1 8
+	syscall
+	jr $ra
+	
 ################################################################################
 # Strings
 ################################################################################
@@ -660,7 +959,7 @@ simple_strncmp:
 
     # Characters differ
     # TODO
-
+    
     # Identical characters
     # TODO
 
@@ -698,31 +997,106 @@ operation_integer_addition:
 
 operation_integer_substraction:
   # TODO
+  #!
+  sub $v0 $a0 $a1
   jr $ra
 
 operation_integer_multiplication:
   # TODO
+  #!
+  mul $v0 $a0 $a1
   jr $ra
 
 operation_integer_division:
   # TODO
+  #!
+  div $v0 $a0 $a1
   jr $ra
 
 operation_integer_minimum:
   # TODO
-  jr $ra
+  # on va comparer les deux arguments
+  # si $a0 est plus petit alors on va garder la valeur de $a0
+  # sinon, on va garder la valeur de $a1
+  ble $a0 $a1 premier_min
+  ble $a1 $a0 deuxiem_min
+  
+  premier_min:
+  	move $v0 $a0
+  	jr $ra
+  deuxiem_min:
+  	move $v0 $a1	 
+  	jr $ra
 
 operation_integer_maximum:
   # TODO
-  jr $ra
+  # on va comparer les deux arguments
+  # si $a0 est plus grand alors on va garder la valeur de $a0
+  # sinon, on va garder la valeur de $a1
+  bge $a0 $a1 premier_max
+  bge $a1 $a0 deuxiem_max
+  
+  premier_max:
+  	move $v0 $a0
+  	jr $ra
+  	
+  deuxiem_max:
+   	move $v0 $a1 
+	jr $ra
 
 operation_integer_pow:
   # TODO
-  jr $ra
+
+  # cas particulier, si le deuxieme argument est égal à 0
+  # on va directement faire un branch vers puissance_zero
+  # qui va renvoier la valeur 1
+  beqz $a1 puissance_zero
+  
+  # on fait des copies des valeurs reçues en argument
+  la $t0 ($a0)
+  la $t1 ($a1)
+  # stock the value 1
+  li $t2 1
+  
+  # on va multiplier de $t1 fois
+  # ($t1 étant le registre où on a stocké la valeur de la puissance)
+  # la valeur de $a0
+  loop:
+  	ble $t1 $t2 end_loop
+  	mul $t0 $t0 $a0
+  	addi $t1 $t1 -1
+  	b loop
+  
+  end_loop:
+  	move $v0 $t0	
+  	jr $ra
+
+  puissance_zero:
+  	li $t0 1
+  	move $v0 $t0
+  	jr $ra	
 
 operation_integer_abs:
   # TODO
-  jr $ra
+  move $t0 $a0
+  # si le nombre est plus grand que 0
+  # alors il est positive
+  # donc on va renvoyer sa valeur, sans la modifier
+  bgtz $t0 positive
+  
+  # si le nombre est negative 
+  # on va faire la substraction entre la valeur réçue et 0
+  # pour obtenir sa valeur positive
+  bltz $t0 negative
+  
+  positive:
+  	move $v0 $t0
+  	jr $ra
+  negative:
+  	sub $t0 $zero $t0
+  	move $v0 $t0
+  	jr $ra
+
 
 ################################################################################
 # Floating Point Operations
@@ -750,6 +1124,7 @@ operation_float_addition:
 ## $f0: $f12 - $f13
 operation_float_substraction:
   # TODO
+  sub.s $f0 $f12 $f13
   jr $ra
 
 ## Float multiplication
@@ -762,6 +1137,7 @@ operation_float_substraction:
 ## $f0: $f12 * $f13
 operation_float_multiplication:
   # TODO
+  mul.s $f0 $f12 $f13
   jr $ra
 
 ## Float division
@@ -774,6 +1150,7 @@ operation_float_multiplication:
 ## $f0: $f12 / $f13
 operation_float_division:
   # TODO
+  div.s $f0 $f12 $f13
   jr $ra
 
 ## Float minimum
@@ -786,7 +1163,24 @@ operation_float_division:
 ## $f0: min($f12, $f13)
 operation_float_minimum:
   # TODO
-  jr $ra
+  # on fait la comparaison entre les deux valeurs
+  # pour determiner la valeur la plus petite
+  # et en c on va garder la valeur de la comparaison
+  c.le.s $f12 $f13
+  
+  # si on a true alors on va garder la valeur de $f12
+  bc1t premier_min_float
+  
+  # sinon on va garder la valeur de $f13
+  bc1f deuxiem_min_float
+  
+  premier_min_float:
+  	mov.s $f0 $f12
+  	jr $ra
+  
+  deuxiem_min_float:
+  	mov.s $f0 $f13
+  	jr $ra
 
 ## Float maximum
 ##
@@ -798,14 +1192,98 @@ operation_float_minimum:
 ## $f0: max($f12, $f13)
 operation_float_maximum:
   # TODO
-  jr $ra
+  # on fait la comparaison entre les deux valeur
+  # pour determiner la valeur la plus grande
+  # et en c on va garder la valeur la plus grand
+  c.le.s $f12 $f13
+  # si on a true, ça veut dire que le deuxieme est plus grand
+  # donc on va stocker sa valeur
+  bc1t deuxiem_max_float
+  # sinon on va prendre l'autre valeur
+  bc1f premier_max_float
+  
+  premier_max_float:
+  	mov.s $f0 $f12
+  	jr $ra
+  
+  deuxiem_max_float:
+  	mov.s $f0 $f13
+	jr $ra
 
 operation_float_pow:
   # TODO
-  jr $ra
+  # on va garder les valeurs 0 dans le registre $f1
+  # et la valeur 1 dans les registres $f2 et $f3
+  l.s $f1 fp0
+  l.s $f2 fp1
+  l.s $f3 fp1
+  
+  # si le deuxiem élément qui correspond à la puissance est égal à 0
+  c.eq.s $f13 $f1
+  
+  # alors on va renvoyer la valeur 1
+  bc1t puissance_zero_float
+  
+  # sinon on va calculer le resultat
+  bc1f puissance_difzero_float	  
+  
+  puissance_difzero_float:
+  	# on va determiner si la valeur de $f13 qui correspond à la puissance
+  	# est égal à 0 (conditin d'arrêt de la boucle)
+  	c.le.s $f13 $f1
+  	
+  	# si $f13 n'est pas égal à 0, on va continuer de calculer le resultat
+  	bc1f flooppow
+  	
+  	# sinon, on va sortir de la boucle
+  	bc1t ffinlooppow 
+  	flooppow:
+  		# chaque fois on va multiplier par la valeur de $f12
+  		# qui correspond à la valeur de la base
+  		mul.s $f3 $f3 $f12
+  		sub.s $f13 $f13 $f2
+  		j puissance_difzero_float
+  	
+  	ffinlooppow:
+  		# si on est sorti de la boucle
+  		# on va renvoyer la valeur du calcul
+  		mov.s $f0 $f3
+  		jr $ra
 
+    puissance_zero_float:
+  	    mov.s $f0 $f2
+  	    jr $ra
+		
 operation_float_abs:
   # TODO
-  jr $ra
+  # on va stocker dans $f1 la valeur 0
+  l.s $f1 fp0
+  
+  # et on fait une copie de la valeur de $f12
+  # le seul argument, puisqu'on a pas besoin d'un deuxiem élément
+  mov.s $f11 $f12
+  
+  # si la valeur qu'on a réçue en paramètre est plus petit que 0  
+  c.lt.s $f11 $f1
+  
+  # on va determiner la valeur absolue
+  bc1t negative_float
+  bc1f positive_float
+  
+  positive_float:
+  	# si le nombre est positif
+  	# on va tout simplement renvoyer sa valeur
+  	mov.s $f0 $f12
+  	jr $ra
+  negative_float:
+  	# si le nombre n'est pas positif
+  	# on va faire le substraction entre 0 et sa valeur
+  	# pour determiner la valeur absolue
+  	# et puis on va renvoyer la valeur absolue
+  	sub.s $f12 $f1 $f12
+  	mov.s $f0 $f12
+  	jr $ra
+  
 
 # vim:ft=mips
+
